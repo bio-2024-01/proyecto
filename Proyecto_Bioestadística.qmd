@@ -1,0 +1,81 @@
+---
+title: "Proyecto_Bioestadística"
+format: html
+editor: visual
+---
+
+## Tema: Violencia psicológica en mujeres menores de edad en el Perú (VPSMM) 
+
+Tarea 1: Gráficar la cantidad de casos de VPSMM en el año 2023 en Perú
+
+```{r}
+library(haven)
+library(writexl)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(dplyr)
+```
+
+Cargando bases de datos
+
+```{r}
+BD1_sav <- read_sav("Registro_casos 1.sav")
+write_xlsx(BD1_sav, "BD1.xlsx")
+
+BD2_sav <- read_sav("Registro_casos 2.sav")
+write_xlsx(BD2_sav, "BD2.xlsx")
+```
+
+Filtrado de datos
+
+```{r}
+#Filtro 1: casos de violencia psicológica
+BD1<-BD1_sav[BD1_sav$TIPO_VIOLENCIA==1,]
+BD2<-BD2_sav[BD2_sav$TIPO_VIOLENCIA==1,]
+#Filtro 2: casos de violencia psicológica en menores de edad
+BD1<-BD1[BD1$EDAD_VICTIMA<18,]
+BD2<-BD2[BD2$EDAD_VICTIMA<18,]
+```
+
+Quitando las variables diferentes entre ambas tablas
+
+```{r}
+columnas_tabla1 <- colnames(BD1)
+columnas_tabla2 <- colnames(BD2)
+
+# Identificar columnas diferentes
+columnas_diferentes <- setdiff(union(columnas_tabla1, columnas_tabla2), intersect(columnas_tabla1, columnas_tabla2))
+# Mostrar las columnas diferentes
+#print(columnas_diferentes)
+# Eliminando las columnas que son diferentes entre base de datos 
+BD1 <- BD1[, !(names(BD1) %in% columnas_diferentes)]
+BD2 <- BD2[, !(names(BD2) %in% columnas_diferentes)]
+```
+
+Juntando base de datos y agregando Semana epidemiológica
+
+```{r}
+BD1 <- as.data.frame(lapply(BD1, as.character))
+BD2 <- as.data.frame(lapply(BD2, as.character))
+
+BD_2023 <- rbind(BD1,BD2)
+
+BD_2023 <- BD_2023 %>%
+  mutate(
+    semana_epidemiologica = epiweek(FECHA_INGRESO),
+    año_epidemiologico = ifelse(month(FECHA_INGRESO) == 12 & epiweek(FECHA_INGRESO) == 1, year(FECHA_INGRESO) + 1, year(FECHA_INGRESO))
+  )
+```
+
+Graficando los casos en el 2023
+
+```{r}
+ggplot(data=BD_2023, aes(x=semana_epidemiologica))+
+  geom_histogram()+
+  labs(x="Semana epidemiológicas 2023",y="Cantidad de casos de VPS")+
+  ggtitle(label="Cantidad de casos de VPS por semana epidemiológica en el 2023")+
+  scale_x_continuous(breaks = seq(0, 52, by = 5)) +
+  scale_y_continuous(breaks = seq(0, 1100, by = 200))
+```
