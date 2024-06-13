@@ -93,7 +93,7 @@ c_dpto$Departamento<-c("Amazonas","Áncash","Apurímac","Arequipa","Ayacucho","C
 c_dpto
 
 # Cargar datos geoespaciales de los departamentos del Perú
-peru_departamentos <- st_read(dsn = "C:/Users/axime/Desktop/P_bioes/mapa/dp.shp")
+peru_departamentos <- st_read(dsn = "dp.shp")
 peru_departamentos
 
 # Fusionar los datos geoespaciales con la tabla de conteo por departamentos
