@@ -14,8 +14,9 @@ library(writexl)
 library(lubridate)
 library(dplyr)
 library(ggplot2)
-library(lubridate)
 library(sf)
+library(ggplot2)
+library(lubridate)
 
 ```
 
@@ -88,23 +89,18 @@ Frecuencia de casos por departamentos
 c_dpto<-table(BD_2023$DPTO_DOMICILIO)
 c_dpto<-data.frame(c_dpto)
 
-names(c_dpto)<-c("Departamento","Casos")
-c_dpto$Departamento<-c("Amazonas","Áncash","Apurímac","Arequipa","Ayacucho","Cajamarca","Callao","Cusco","Huancavelica","Huánuco","Ica","Junin","La libertad","Lambayeque","Lima","Loreto","Madre de Dios","Moquegua","Pasco","Piura","Puno","San Martin","Tacna","Tumbes","Ucayali")
+peru_departamentos <- st_read(dsn = "D:/Bioingenieria/2024/ciclo 2024 - 1/Bioestadística/Proyecto/dp.shp")
 
-c_dpto
+names(c_dpto)[1]="CCDD"
 
-# Cargar datos geoespaciales de los departamentos del Perú
-peru_departamentos <- st_read(dsn = "dp.shp")
-peru_departamentos
 
-# Fusionar los datos geoespaciales con la tabla de conteo por departamentos
-peru
 
-peru_departamentos <- merge(peru_departamentos, c_dpto, by.x = "NAME_1", by.y = "Casos")
+peru_casos <-inner_join(peru_departamentos, c_dpto, by = "CCDD")
 
 ggplot() +
-  geom_sf(data = peru_departamentos, aes(fill = Casos)) +
-  scale_fill_viridis_c(name = "Casos") +
+  geom_sf(data = peru_casos, aes(fill = Freq)) +
+  scale_fill_gradient2(name = "Casos", low = "white", mid = "pink", high = "red", midpoint = median (peru_casos$Freq)) +  # Define un color de punto medio +
   theme_minimal()
+
 
 ```
