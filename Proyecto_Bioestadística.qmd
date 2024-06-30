@@ -17,25 +17,14 @@ library(ggplot2)
 library(sf)
 library(ggplot2)
 library(lubridate)
-
 ```
 
 Cargando bases de datos
 
 ```{r}
+# https://portalestadistico.aurora.gob.pe/bases-de-datos-2023/
 BD1_sav <- read_sav("Registro_casos 1.sav")
 BD2_sav <- read_sav("Registro_casos 2.sav")
-```
-
-Filtrado de datos
-
-```{r}
-#Filtro 1: casos de violencia psicológica
-BD1<-BD1_sav[BD1_sav$TIPO_VIOLENCIA==1,]
-BD2<-BD2_sav[BD2_sav$TIPO_VIOLENCIA==1,]
-#Filtro 2: casos de violencia psicológica en menores de edad
-BD1<-BD1[BD1$EDAD_VICTIMA<18,]
-BD2<-BD2[BD2$EDAD_VICTIMA<18,]
 ```
 
 Quitando las variables diferentes entre ambas tablas
@@ -56,16 +45,16 @@ BD2 <- BD2[, !(names(BD2) %in% columnas_diferentes)]
 Juntando base de datos y agregando Semana epidemiológica
 
 ```{r}
-BD1 <- as.data.frame(lapply(BD1, as.character))
-BD2 <- as.data.frame(lapply(BD2, as.character))
-
-BD_2023 <- rbind(BD1,BD2)
-
-BD_2023 <- BD_2023 %>%
+rbind(BD1,BD2) %>%
+  filter(
+    TIPO_VIOLENCIA == 1 &
+    EDAD_VICTIMA < 18 &
+    SEXO_VICTIMA == 0
+  ) %>%
   mutate(
     semana_epidemiologica = epiweek(FECHA_INGRESO),
     año_epidemiologico = ifelse(month(FECHA_INGRESO) == 12 & epiweek(FECHA_INGRESO) == 1, year(FECHA_INGRESO) + 1, year(FECHA_INGRESO))
-  )
+  ) -> BD_2023
 ```
 
 Graficando los casos en el 2023
