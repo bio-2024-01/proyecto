@@ -112,11 +112,16 @@ ggpairs(BD_2023_agg)
 
 ```{r}
 m0 = glm(casos ~ 1, family = poisson, data = BD_2023_agg)
-m0
+summary(m0)
+```
+
+```{r}
+m1 = glm(casos ~ edad_victima_avg, family = poisson, data = BD_2023_agg)
+summary(m1)
 ```
 
 
 ```{r}
-m1 = glm(casos ~ edad_victima_avg, family = poisson, data = BD_2023_agg)
-m1
+m2 = glm(casos ~ edad_victima_avg+SEXO_AGRESOR, family = poisson, data = BD_2023_agg)
+summary(m2)
 ```
