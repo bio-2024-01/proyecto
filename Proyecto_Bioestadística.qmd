@@ -103,7 +103,21 @@ ggplot() +
 ```
 
 ```{r}
+library(GGally)
+BD_2023 %>%
+  group_by(semana_epidemiologica) %>%
+  summarise(
+    casos = n(),
+    edad_victima_avg = mean(as.numeric(EDAD_VICTIMA)),
+    edad_agresor_avg = mean(as.numeric(EDAD_AGRESOR)),
+    #TODO: Más variables
+  ) -> BD_2023_agg
 
-#TODO: Modelo multivariado
+#BD_2023_agg
+ggpairs(BD_2023_agg)
+```
 
+```{r}
+m0 = glm(casos ~ 1, family = poisson, data = BD_2023_agg)
+m0
 ```
