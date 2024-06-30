@@ -96,13 +96,14 @@ library(GGally)
 BD_2023 %>%
   group_by(
     semana_epidemiologica,
-    SEXO_AGRESOR
+    #TODO: Variables categóricas
+    #SEXO_AGRESOR,
   ) %>%
   summarise(
     casos = n(),
     edad_victima_avg = mean(as.numeric(EDAD_VICTIMA)),
     edad_agresor_avg = mean(as.numeric(EDAD_AGRESOR)),
-    #TODO: Más variables
+    #TODO: Variables categóricas?
   ) %>%
   ungroup() -> BD_2023_agg
 
@@ -122,6 +123,6 @@ summary(m1)
 
 
 ```{r}
-m2 = glm(casos ~ edad_victima_avg+SEXO_AGRESOR, family = poisson, data = BD_2023_agg)
+m2 = glm(casos ~ edad_victima_avg+edad_agresor_avg, family = poisson, data = BD_2023_agg)
 summary(m2)
 ```
