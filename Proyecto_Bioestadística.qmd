@@ -24,10 +24,7 @@ Cargando bases de datos
 
 ```{r}
 BD1_sav <- read_sav("Registro_casos 1.sav")
-write_xlsx(BD1_sav, "BD1.xlsx")
-
 BD2_sav <- read_sav("Registro_casos 2.sav")
-write_xlsx(BD2_sav, "BD2.xlsx")
 ```
 
 Filtrado de datos
@@ -89,7 +86,7 @@ Frecuencia de casos por departamentos
 c_dpto<-table(BD_2023$DPTO_DOMICILIO)
 c_dpto<-data.frame(c_dpto)
 
-peru_departamentos <- st_read(dsn = "D:/Bioingenieria/2024/ciclo 2024 - 1/Bioestadística/Proyecto/dp.shp")
+peru_departamentos <- st_read(dsn = "dp.shp")
 
 names(c_dpto)[1]="CCDD"
 
@@ -102,5 +99,11 @@ ggplot() +
   scale_fill_gradient2(name = "Casos", low = "white", mid = "pink", high = "red", midpoint = median (peru_casos$Freq)) +  # Define un color de punto medio +
   theme_minimal()
 
+
+```
+
+```{r}
+
+#TODO: Modelo multivariado
 
 ```
