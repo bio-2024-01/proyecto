@@ -1,12 +1,8 @@
 ---
-title: "Proyecto_Bioestadística"
+title: "Proye"
 format: html
 editor: visual
 ---
-
-## Tema: Violencia psicológica en mujeres menores de edad en el Perú (VPSMM)
-
-Tarea 1: Gráficar la cantidad de casos de VPSMM en el año 2023 en Perú
 
 ```{r}
 library(haven)
@@ -19,63 +15,74 @@ library(ggplot2)
 library(lubridate)
 ```
 
-Cargando bases de datos
-
 ```{r}
-# https://portalestadistico.aurora.gob.pe/bases-de-datos-2023/
+#Importando datos
 BD1_sav <- read_sav("Registro_casos 1.sav")
+write_xlsx(BD1_sav, "BD1.xlsx")
 BD2_sav <- read_sav("Registro_casos 2.sav")
-```
-
-Quitando las variables diferentes entre ambas tablas
-
-```{r}
-columnas_tabla1 <- colnames(BD1)
-columnas_tabla2 <- colnames(BD2)
-
-# Identificar columnas diferentes
+write_xlsx(BD2_sav, "BD2.xlsx")
+#Quitando variables diferentes (no en común)
+columnas_tabla1 <- colnames(BD1_sav)
+columnas_tabla2 <- colnames(BD2_sav)
+##Identificar columnas diferentes
 columnas_diferentes <- setdiff(union(columnas_tabla1, columnas_tabla2), intersect(columnas_tabla1, columnas_tabla2))
-# Mostrar las columnas diferentes
-#print(columnas_diferentes)
-# Eliminando las columnas que son diferentes entre base de datos 
-BD1 <- BD1[, !(names(BD1) %in% columnas_diferentes)]
-BD2 <- BD2[, !(names(BD2) %in% columnas_diferentes)]
-```
-
-Juntando base de datos y agregando Semana epidemiológica
-
-```{r}
-rbind(BD1,BD2) %>%
-  filter(
-    TIPO_VIOLENCIA == 1 &
-    EDAD_VICTIMA < 18 &
-    SEXO_VICTIMA == 0
-  ) %>%
+##Eliminando las columnas que son diferentes entre base de datos 
+BD1 <- BD1_sav[, !(names(BD1_sav) %in% columnas_diferentes)]
+BD2 <- BD2_sav[, !(names(BD2_sav) %in% columnas_diferentes)]
+#Filtrando datos por solo violencia psicológica
+##Filtro 1: tipo de violencia -> psicológica
+BD1<-BD1[BD1$TIPO_VIOLENCIA==1,]
+BD2<-BD2[BD2$TIPO_VIOLENCIA==1,]
+##Filtro 2: sexo de victima -> mujeres
+BD1<-BD1[BD1$SEXO_VICTIMA==0,]
+BD2<-BD2[BD2$SEXO_VICTIMA==0,]
+##Filtro 3: edad -> menores de edad
+BD1_1<-BD1[BD1$EDAD_VICTIMA<18,]
+BD2_1<-BD2[BD2$EDAD_VICTIMA<18,]
+#Jundanto base de datos en una tabla 
+BD1 <- as.data.frame(lapply(BD1,as.character))
+BD2 <- as.data.frame(lapply(BD2,as.character))
+BD_2023 <- rbind(BD1,BD2)#solo violencia psicoloógica
+BD1_1<- as.data.frame(lapply(BD1_1,as.character))
+BD2_1 <- as.data.frame(lapply(BD2_1,as.character))
+BD_2023_1 <- rbind(BD1_1,BD2_1)#solo violencia psicoloógica y menores de 18
+#Agregando semanas epidemiodológicas
+BD_2023_1<- BD_2023_1 %>%
   mutate(
     semana_epidemiologica = epiweek(FECHA_INGRESO),
     año_epidemiologico = ifelse(month(FECHA_INGRESO) == 12 & epiweek(FECHA_INGRESO) == 1, year(FECHA_INGRESO) + 1, year(FECHA_INGRESO))
-  ) -> BD_2023
+  )
+BD_2023<- BD_2023 %>%
+  mutate(
+    semana_epidemiologica = epiweek(FECHA_INGRESO),
+    año_epidemiologico = ifelse(month(FECHA_INGRESO) == 12 & epiweek(FECHA_INGRESO) == 1, year(FECHA_INGRESO) + 1, year(FECHA_INGRESO))
+  )
 ```
 
-Graficando los casos en el 2023
+Graficando los casos de violencia psicológica hacia mujeres y mujeres menores de edad en el 2023 por semana epidemiodológica.
 
 ```{r}
-ggplot(data=BD_2023, aes(x=semana_epidemiologica))+
-  geom_histogram()+
+df1 <- data.frame(value = BD_2023, group = "mayores de edad")
+df2 <- data.frame(value = BD_2023_1, group = "menores de edad")
+df <- rbind(df1, df2)
+
+ggplot(data=df, aes(x=value.semana_epidemiologica,fill=group))+
+  geom_histogram(position = "identity", alpha = 0.5, bins = 30)+
   labs(x="Semana epidemiológicas 2023",y="Cantidad de casos de VPS")+
   ggtitle(label="Cantidad de casos de VPS por semana epidemiológica en el 2023")+
-  scale_x_continuous(breaks = seq(0, 52, by = 5)) +
-  scale_y_continuous(breaks = seq(0, 1100, by = 200))
+  scale_fill_manual(values = c("orange","blue"))+
+  scale_x_continuous(breaks = seq(1, 52, by = 10)) +
+  scale_y_continuous(breaks = seq(0, 2700, by = 500))
 ```
 
-Frecuencia de casos por departamentos
+Frecuencia de datos por departamentos
 
 ```{r}
 #names(BD_2023)
 c_dpto<-table(BD_2023$DPTO_DOMICILIO)
 c_dpto<-data.frame(c_dpto)
 
-peru_departamentos <- st_read(dsn = "dp.shp")
+peru_departamentos <- st_read(dsn = "D:/Bioingenieria/2024/ciclo 2024 - 1/Bioestadística/Proyecto/dp.shp")
 
 names(c_dpto)[1]="CCDD"
 
@@ -87,42 +94,84 @@ ggplot() +
   geom_sf(data = peru_casos, aes(fill = Freq)) +
   scale_fill_gradient2(name = "Casos", low = "white", mid = "pink", high = "red", midpoint = median (peru_casos$Freq)) +  # Define un color de punto medio +
   theme_minimal()
+```
 
+Filtrado de variables
 
+```{r}
+BD_VSP_2023 <- data.frame(BD_2023%>%select(1,2,3,19,20,21,27,28,29,30,34,35,38,44,57,58,59,60,61,63,64,65,66,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,126,127,129,131,153,156,157,160,161,162,163,164,165))
+#Convirtiendo los tipos de datos a numéricos menos el CEM y fecha de ingreso
+BD_VSP_2023 <- BD_VSP_2023 %>% mutate(across(-c(1, 3), as.numeric))
+#agregando variable mayor de edad
+#menorde edad[1]
+#mayor de edad [0]
+BD_VSP_2023$MENOR_DE_EDAD <- ifelse(BD_VSP_2023$EDAD_VICTIMA < 18, 1, 0)
+```
+
+Prevalencia de evento de interes
+
+```{r}
+#evento de interes: victima menor de edad
+(nrow(BD_2023_1)/nrow(BD_2023))*100
+#Prevalencia de 21% 
+#Regresión de Poisson o enlace Log
+#Magnitud de asociación: razón de prevalencia
 ```
 
 ```{r}
-library(GGally)
-BD_2023 %>%
-  group_by(
-    semana_epidemiologica,
-    #TODO: Variables categóricas
-    #SEXO_AGRESOR,
-  ) %>%
-  summarise(
-    casos = n(),
-    edad_victima_avg = mean(as.numeric(EDAD_VICTIMA)),
-    edad_agresor_avg = mean(as.numeric(EDAD_AGRESOR)),
-    #TODO: Variables categóricas?
-  ) %>%
-  ungroup() -> BD_2023_agg
-
-BD_2023_agg
-ggpairs(BD_2023_agg)
+#Modelo Nulo
+Reg_PoissonNula<- glm(MENOR_DE_EDAD ~ 1, family = poisson (link = "log"), data = BD_VSP_2023)
+summary(Reg_PoissonNula)
+#AKAIKE = 113452
+#4% del AKAIKE
+AIC_4p<-63935*0.04
 ```
 
 ```{r}
-m0 = glm(casos ~ 1, family = poisson, data = BD_2023_agg)
-summary(m0)
+#Relación con la edad del agresor
+Reg_Poisson1_1<- glm(MENOR_DE_EDAD ~ EDAD_AGRESOR, family = poisson (link = "log"), data = BD_VSP_2023)
+summary(Reg_Poisson1_1)
+summary(Reg_Poisson1_1)$r.squared
+(63935-63277)>AIC_4p
+#DIFERENCIA DE AKAIKE NO SIGNIFICATIVO
 ```
 
 ```{r}
-m1 = glm(casos ~ edad_victima_avg, family = poisson, data = BD_2023_agg)
-summary(m1)
+#Relación con departamento
+Reg_Poisson1_2<- glm(MENOR_DE_EDAD ~ ETNIA_VICTIMA, family = poisson (link = "log"), data = BD_VSP_2023)
+summary(Reg_Poisson1_2)
+(63935-63850)>AIC_4p
+#DIFERENCIA DE AKAIKE NO SIGNIFICATIVO
 ```
 
+```{r}
+#Relación si estudia
+Reg_Poisson1_3<- glm(MENOR_DE_EDAD ~ ESTUDIA, family = poisson (link = "log"), data = BD_VSP_2023)
+summary(Reg_Poisson1_3)
+(63935-46454)>AIC_4p
+#DIFERENCIA DE AKAIKE SIGNIFICATIVO
+```
 
 ```{r}
-m2 = glm(casos ~ edad_victima_avg+edad_agresor_avg, family = poisson, data = BD_2023_agg)
-summary(m2)
+#Relación si trabaja
+Reg_Poisson1_4<- glm(MENOR_DE_EDAD ~ TRABAJA_VICTIMA, family = poisson (link = "log"), data = BD_VSP_2023)
+summary(Reg_Poisson1_4)
+(63935-51462)>AIC_4p
+#DIFERENCIA DE AKAIKE SIGNIFICATIVO
+```
+
+```{r}
+#Relación con el vinculo familiar
+Reg_Poisson1_5<- glm(MENOR_DE_EDAD ~ VINCULO_AGRESOR_VICTIMA, family = poisson (link = "log"), data = BD_VSP_2023)
+summary(Reg_Poisson1_5)
+(63935- 51678)>AIC_4p
+#DIFERENCIA DE AKAIKE SIGNIFICATIVO
+```
+
+```{r}
+#Modelo multivariado
+#Variables: ESTUDIA, TRABAJA, VINCULO FAMILIAR)
+Reg_Poisson2<- glm(MENOR_DE_EDAD ~ ESTUDIA + TRABAJA_VICTIMA + VINCULO_AGRESOR_VICTIMA, family = poisson(link = "log"), data = BD_VSP_2023)
+summary(Reg_Poisson2)
+(63935- 37602)>AIC_4p
 ```
