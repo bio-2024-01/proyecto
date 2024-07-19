@@ -14,6 +14,8 @@ library(sf)
 library(ggplot2)
 library(lubridate)
 library(corrplot)
+library(stats)
+library(car)
 ```
 
 ```{r}
@@ -38,6 +40,8 @@ BD2<-BD2[BD2$SEXO_VICTIMA==0,]
 BD1 <- as.data.frame(lapply(BD1,as.character))
 BD2 <- as.data.frame(lapply(BD2,as.character))
 BD_2023 <- rbind(BD1,BD2)#mujeres que sufrieron de violencia
+#separando la población: Menores de edad
+BD_2023<-BD_2023[BD_2023$EDAD_VICTIMA<=18,]
 #Agregando semanas epidemiodológicas
 BD_2023<- BD_2023 %>%
   mutate(
@@ -45,13 +49,501 @@ BD_2023<- BD_2023 %>%
     año_epidemiologico = ifelse(month(FECHA_INGRESO) == 12 & epiweek(FECHA_INGRESO) == 1, year(FECHA_INGRESO) + 1, year(FECHA_INGRESO))
   )
 
-BD_VSP_2023 <- data.frame(BD_2023%>%select(1,2,19,20,21,27,28,29,30,33,34,35,37,38,44,57,58,59,60,61,63,64,65,66,69,70,126,127,129,131,153,156,157,160,161,162,163,164,165))
+
+columnas_deseadas <- c(1,2,19,20,21,27,28,29,30,33,34,35,37,38,44,57,58,59,60,61,63,64,65,66,69,70,126,127,129,131,153,156,157,160,161,162,163,164,165)
+BD_2023 <- BD_2023 %>%
+  select_if(names(.) %in% names(.)[columnas_deseadas])
+
 #Convirtiendo los tipos de datos a numéricos menos el CEM y fecha de ingreso
-BD_VSP_2023 <- BD_VSP_2023 %>% mutate(across(-c(1, 3), as.numeric))
-#agregando variable mayor de edad
-#menorde edad[1]
-#mayor de edad [0]
-BD_VSP_2023$MENOR_DE_EDAD <- ifelse(BD_VSP_2023$EDAD_VICTIMA < 18, 1, 0)
-names(BD_VSP_2023)
+BD_2023 <- BD_2023 %>% mutate(across(-c(1, 3), as.numeric))
+
 
 ```
+
+```{r}
+BD_2023
+names(BD_2023)
+```
+
+**ANÁLISIS DESCRIPTIVO**
+
+Descripción general de las variables numéricas
+
+```{r}
+BD_2023<-BD_2023[BD_2023$EDAD_VICTIMA<=18,]
+BD_2023$EDAD_VICTIMA <- as.numeric(BD_2023$EDAD_VICTIMA)
+summary(BD_2023)
+```
+
+Análisis de datos perdidos
+
+```{r}
+# Evalue datos faltantes
+sum(is.na(BD_2023))
+
+# Porcentaje de datos perdidos
+mean(is.na(BD_2023)) * 100
+```
+
+Perfil del agresor
+
+```{r}
+#Edad del agresor (análizar normalidad)
+summary(BD_2023$EDAD_AGRESOR)
+table(BD_2023$EDAD_AGRESOR)
+
+#Sexo del agresor (H=1,M=0)
+table(BD_2023$SEXO_AGRESOR)
+
+#Nivel educativo del agresor (1-12, con orden)
+table(BD_2023$NIVEL_EDUCATIVO_AGRESOR)
+
+#¿Es la primera vez que agrede?
+table(BD_2023$PRIMERA_VEZ_AGREDE)
+
+#¿Vive con la víctima? (Si=1,No=0,A veces=2)
+table(BD_2023$AGRESOR_VIVE_CASA_VICTIMA)
+
+#¿El agresor trabaja? (Si=1, No=0)
+table(BD_2023$TRABAJA_AGRESOR)
+
+#Tipo de violencia ejercida (0=VE,1=VP,2=VF,3=VS)
+table(BD_2023$TIPO_VIOLENCIA)
+
+#Situación legal del agresor (?)
+table(BD_2023$SITUACION_AGRESOR)
+
+#Vinculo agresor victima (1=VP, 2=VF,3=NV)
+table(BD_2023$VINCULO_AGRESOR_VICTIMA)
+
+```
+
+Perfil de la víctima
+
+```{r}
+#Edad de la víctima
+summary(BD_2023$EDAD_VICTIMA)
+table(BD_2023$EDAD_VICTIMA)
+
+
+#¿La víctima está gestando? (0-1)
+table(BD_2023$VICTIMA_GESTANDO)
+
+#Etnia de la víctima (1-9, sin orden)
+table(BD_2023$ETNIA_VICTIMA)
+
+#Estado civil victima
+table(BD_2023$ESTADO_CIVIL_VICTIMA)
+
+#Nivel educativo de la victima (1-12, con orden)
+table(BD_2023$NIVEL_EDUCATIVO_VICTIMA)
+
+#¿La victima estudia? (Si=1, No=0)
+table(BD_2023$ESTUDIA)
+
+#¿La victima trabaja? (Si=1,No=0)
+table(BD_2023$TRABAJA_VICTIMA)
+
+#¿La víctima presenta alguna discapacidad? (Si=1,No=0)
+table(BD_2023$DISCAPACIDAD_VICTIMA)
+
+```
+
+```{r}
+BD_2023 <- BD_2023 %>%
+  mutate(EDAD_VICTIMA = ifelse(EDAD_VICTIMA > 18 | EDAD_VICTIMA < 0, NA, EDAD_VICTIMA)) %>%
+  filter(!is.na(EDAD_VICTIMA))
+
+#Edad de la víctima
+summary(BD_2023$EDAD_VICTIMA)
+table(BD_2023$EDAD_VICTIMA)
+```
+
+Análisis de normalidad
+
+Las únicas variables continuas que encontramos en nuestra base de datos son las variables de edad, las demás son variables categóricas dicotómicas (0 y 1) o politómicas. Por lo tanto, las únicas variables que podrán pasar por un análisis de normalidad son las variables: EDAD_VICTIMA y EDAD_AGRESOR.
+
+```{r}
+#Edad de la víctima
+qqnorm(BD_2023$EDAD_VICTIMA)
+qqline(BD_2023$EDAD_VICTIMA, col = "red")
+boxplot(BD_2023$EDAD_VICTIMA)
+ggplot(BD_2023, aes(x = EDAD_VICTIMA)) + 
+  geom_histogram(aes(y = ..density..),
+                 colour = 1, fill = "white") +
+    geom_density(alpha=.2, fill="#FF6666") + 
+  labs (y= "Densidad", x="Edad de la víctima (años)")
+
+#Edad del agresor
+qqnorm(BD_2023$EDAD_AGRESOR)
+qqline(BD_2023$EDAD_AGRESOR, col = "green")
+boxplot(BD_2023$EDAD_AGRESOR)
+ggplot(BD_2023, aes(x = EDAD_AGRESOR)) + 
+  geom_histogram(aes(y = ..density..),
+                 colour = 1, fill = "grey") +
+    geom_density(alpha=.2, fill="#FF6666") + 
+  labs (y= "Densidad", x="Edad del agresor (años)")
+```
+
+Interpretación: Ninguna de las variables cuenta con una distribución normal, pues como podemos observar en el caso de la edad de la víctima.....
+
+**Evento de interés**
+
+```{r}
+BD_2023$VIOLENCIA_SEXUAL<-ifelse(BD_2023$TIPO_VIOLENCIA == 3,1,0)
+table(BD_2023$VIOLENCIA_SEXUAL)
+
+```
+
+## Hipótesis
+
+-   Para la prueba de chi-cuadrado:
+    -   H0 - Hipótesis Nula: NO existe una asociación entre las dos variables categóricas (son independientes)
+
+    -   H1 - Hipótesis Alternativa: Existe una asociación entre las variables catégoricas.
+
+    -   Nuestro estudio:
+
+        -   H0: No existe asociación entre el género de la víctima y el tipo de violencia experimentada.
+        -   H1: Existe una asociación entre el género de la víctima y el tipo de violencia experimentada.
+
+```{r}
+# Ejemplo para género y tipo de violencia
+tabla_contingencia <- table(BD_2023$SEXO_VICTIMA, BD_2023$TIPO_VIOLENCIA)
+resultado_chi <- chisq.test(tabla_contingencia)
+print(resultado_chi)
+
+# Si alguna celda tiene menos de 5 observaciones, usar Fisher:
+if(min(resultado_chi$expected) < 5) {
+  resultado_fisher <- fisher.test(tabla_contingencia)
+  print(resultado_fisher)
+}
+```
+
+Interpretación:
+
+-   El p_value es mucho menor que el nivel de significancia típico de 0.05, lo que indica de que rechazaremos la hipótesis nula, pero que aún no hay evidencia científica para sugerir una asociación entre las variables.
+
+Para encontrar profundizar esta asociación nos enfocaremos en nuestro evento de interés -\> Violencia Sexual contra mujeres menores de 18 años
+
+```{r}
+# Función para realizar pruebas chi-cuadrado para variables categóricas
+chi_square_test <- function(var) {
+  tbl <- table(BD_2023[[var]], BD_2023$VIOLENCIA_SEXUAL)
+  test <- chisq.test(tbl)
+  return(list(table = tbl, test = test))
+} 
+
+# Función para realizar pruebas de Mann-Whitney para variables numéricas
+mann_whitney_test <- function(var) {
+  test <- wilcox.test(BD_2023[[var]] ~ BD_2023$VIOLENCIA_SEXUAL)
+  return(test)
+}
+
+# Variables categóricas
+cat_vars <- c("VICTIMA_GESTANDO", "ETNIA_VICTIMA", "ESTADO_CIVIL_VICTIMA", 
+              "NIVEL_EDUCATIVO_VICTIMA", "ESTUDIA", "TRABAJA_VICTIMA", 
+              "DISCAPACIDAD_VICTIMA", "SEXO_AGRESOR", "NIVEL_EDUCATIVO_AGRESOR", 
+              "TRABAJA_AGRESOR", "AGRESOR_VIVE_CASA_VICTIMA", "SITUACION_AGRESOR", 
+              "VINCULO_AGRESOR_VICTIMA")
+
+# Variables numéricas
+num_vars <- c("EDAD_VICTIMA", "EDAD_AGRESOR")
+
+# Realizar pruebas
+cat_results <- lapply(cat_vars, chi_square_test)
+cat_results
+num_results <- lapply(num_vars, mann_whitney_test)
+num_results
+
+```
+
+Hipótesis Nula (H0) La hipótesis nula establece que no hay asociación entre las dos variables categóricas. Es decir, las variables son independientes. H0: Las variables son independientes
+
+Hipótesis Alternativa (H1) La hipótesis alternativa establece que hay una asociación entre las dos variables categóricas. Es decir, las variables no son independientes. H1: Las variables no son independientes
+
+Interpretación de los Resultados
+
+-   Si el valor p es menor que el nivel de significancia (por ejemplo, (p_value=0.05), se rechaza la hipótesis nula. Esto sugiere que hay suficiente evidencia para concluir que existe una asociación entre las dos variables categóricas.
+
+-   Si el valor p es mayor que el nivel de significancia, no se rechaza la hipótesis nula. Esto sugiere que no hay suficiente evidencia para concluir que existe una asociación entre las dos variables categóricas.
+
+Interpretación de resultados:
+
+-   VICTIMA_GESTANDO:
+
+    ```         
+    p-value < 2.2e-16
+    ```
+
+-   ETNIA_VICTIMA
+
+    ```         
+    p-value = 1.286e-07
+    ```
+
+-   ESTADO_CIVIL_VICTIMA
+
+````         
+```         
+ p-value = 0.007821
+```
+````
+
+-   NIVEL_EDUCATIVO_VICTIMA
+
+    ```         
+    p-value < 2.2e-16
+    ```
+
+-   ESTUDIA
+
+    ```         
+    p-value < 2.2e-16
+    ```
+
+-   TRABAJA_VICTIMA
+
+    ```         
+     p-value < 2.2e-16
+    ```
+
+-   DISCAPACIDAD_VICTIMA
+
+    ```         
+    p-value = 8.841e-07
+    ```
+
+-   SEXO_AGRESOR
+
+    ```         
+    p-value < 2.2e-16
+    ```
+
+-   NIVEL_EDUCATIVO_AGRESOR
+
+    ```         
+    p-value < 2.2e-16
+    ```
+
+-   TRABAJA_AGRESOR
+
+    ```         
+    p-value < 2.2e-16 
+    ```
+
+-   AGRESOR_VIVE_CASA_VICTIMA
+
+    ```         
+    p-value < 2.2e-16
+    ```
+
+-   SITUACION_AGRESOR
+
+    ```         
+     p-value = 9.193e-05
+    ```
+
+-   VINCULO_AGRESOR_VICTIMA
+
+    ```         
+    p-value < 2.2e-16
+    ```
+
+```{r}
+library(ggplot2)
+BD_2023$VIOLENCIA_SEXUAL <- factor(BD_2023$VIOLENCIA_SEXUAL, levels = c(0, 1), labels = c("No", "Sí"))
+# Para variables numéricas
+for (var in num_vars) {
+  p <- ggplot(BD_2023, aes(x = VIOLENCIA_SEXUAL, y = .data[[var]])) +
+    geom_boxplot() +
+    labs(title = paste("Distribución de", var, "por Violencia Sexual"),
+         x = "Violencia Sexual", y = var) +
+    theme_minimal()
+  print(p)
+}
+
+
+# Para una variable categórica (ejemplo)
+ggplot(BD_2023, aes(x = NIVEL_EDUCATIVO_VICTIMA, fill = VIOLENCIA_SEXUAL)) +
+  geom_bar(position = "fill") +
+  labs(title = "Proporción de Violencia Sexual por Nivel Educativo de la Víctima",
+       x = "Nivel Educativo", y = "Proporción") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Interpretación de resultados:
+
+1.  Para las variables númericas
+    1.   Boxplot de Edad de las víctimas por violencia sexual (evento de interés)
+    2.  Medianta (-): Las medianas de edad de las víctimas de violencia sexual ("Sí") y las que no han sufrido ("No") son muy similares, aprox en los 14 años.
+    3.  IQR: Hay más variabilidad en las edades de las víctimas que no han sufrido violencia sexual.
+    4.  Valores atípicos: Tenemos la presencia de algunos de ellos en edades muy bajas en ambos grupos, esto indica casos ailados de víctimas muy jóvenes.
+    5.  Conclusión: Dado que la distribución de las edades de las víctimas que han sufrido violencia sexual es más estrecha, esto sugiere que la violencia sexual puede estar afectando de manera desproporcionada a un rango de edades más específico. 
+    
+## Regresión logística: 
+### Selección de variables
+Este permite modelar la probabilidad de que ocurra un evento binario (en nuestro estudio: Sufrir violencia sexual) en función de una o más variables predictoras (pueden se categóricas o continuas)
+
+¿A qué variables utilizaremos una regresión logística binomial? 
+  - Víctima:
+    - "VICTIMA_GESTANDO"
+    - "ESTUDIA"
+    - "TRABAJA_VICTIMA"
+    - "DISCAPACIDAD_VICTIMA"
+  - Agresor: 
+    - "SEXO_AGRESOR"
+    - "TRABAJA_AGRESOR" 
+    
+¿A qué variables utilizaremos una regresión logística multinomial?
+  - Víctima: 
+    - "ETNIA_VICTIMA"
+    - "ESTADO_CIVIL_VICTIMA"
+    - "NIVEL_EDUCATIVO_VICTIMA"
+  - Agresor: 
+    - "NIVEL_EDUCATIVO_AGRESOR"
+    - "AGRESOR_VIVE_CASA_VICTIMA"
+    - "SITUACION_AGRESOR"
+    - "VINCULO_AGRESOR_VICTIMA" 
+ 
+## Analisis de correlación
+
+Para identificar cuáles pueden ser los mejores predictores para el
+modelo
+```{r}
+
+# Usando nombres de columnas como índices
+Dataimport <- BD_2023[, c("VIOLENCIA_SEXUAL", "VICTIMA_GESTANDO", "ESTUDIA", "TRABAJA_VICTIMA", 
+                          "DISCAPACIDAD_VICTIMA", "SEXO_AGRESOR", "TRABAJA_AGRESOR", "ETNIA_VICTIMA", 
+                          "ESTADO_CIVIL_VICTIMA", "NIVEL_EDUCATIVO_VICTIMA", "NIVEL_EDUCATIVO_AGRESOR", 
+                          "AGRESOR_VIVE_CASA_VICTIMA", "SITUACION_AGRESOR", "VINCULO_AGRESOR_VICTIMA")]
+
+# Verificar las primeras filas del DataFrame resultante
+head(Dataimport)
+
+
+
+```
+
+### Con la liberia GGally
+
+```{r}
+#La libreria GGally permite observar los diagramas de dispersión, valores de correlación y la distribución de las variables en un solo gráfico
+ggpairs(Dataimport, lower = list(continuous = "smooth"), diag = list(continuous = "bar"), axisLabels = "none")
+```
+
+### Con la libreria PerformanceAnalytics
+
+```{r}
+chart.Correlation(Dataimport, method="spearman", histogram=TRUE, pch=16)
+```
+
+Se puede visualizar que sí existe relación entre ciertas variables.
+
+### Con la libreria corrplot
+
+```{r}
+library(corrplot)
+correlations <- cor(Dataimport[,1:14])
+
+corrplot(correlations, method = "circle")
+```
+
+
+### Método Forward
+
+#### Modelo nulo
+
+Corremos un modelo nulo.
+
+```{r}
+
+modelo_nulo = glm(Status ~ 1,
+                 data=Data_Final,
+                 family = binomial)
+
+summary(modelo_nulo)
+```
+
+Definimos y calculamos el ajuste del modelo.
+
+```{r}
+#Definir el modelo
+modelo_0 <- list(modelo_nulo)
+
+#Especificar el nombre del modelo
+mod.names0 <- c('status')
+
+#Calcular el AIC del modelo nulo
+aictab(cand.set = modelo_0, modnames = mod.names0)
+
+```
+
+El AIC del modelo nulo es 92.4.
+
+#### Modelos de primer orden
+
+Realizamos nuestro primer modelo de primer orden.
+
+```{r}
+modelo_1.1 <- glm(Status ~ Release, data = Data_Final, family = binomial )
+summary(modelo_1.1)
+```
+
+Calculamos el intervalo de confianza de los coeficientes.
+
+```{r}
+exp(cbind(coef(modelo_1.1), confint(modelo_1.1)))
+```
+
+Hacemos lo propio con el segundo modelo de primer orden.
+
+```{r}
+modelo_1.2 <- glm(Status ~ Migr, data  = Data_Final, family = binomial)
+summary(modelo_1.2)
+
+exp(cbind(coef(modelo_1.2), confint(modelo_1.2)))
+```
+
+Hacemos lo propio con el tercer modelo de primer orden.
+
+```{r}
+modelo_1.3 <- glm(Status ~ Mass, data = Data_Final, family = binomial)
+summary(modelo_1.3)
+
+exp(cbind(coef(modelo_1.3), confint(modelo_1.3)))
+```
+
+```{r}
+modelo_1.4 <- glm(Status ~ Indiv, data = Data_Final, family = binomial)
+summary(modelo_1.4)
+
+exp(cbind(coef(modelo_1.4), confint(modelo_1.4)))
+```
+
+Hacemos lo propio con el quinto modelo de primer orden.
+
+```{r}
+modelo_1.5 <- glm(Status ~ Insect, data = Data_Final, family = binomial)
+summary(modelo_1.5)
+
+exp(cbind(coef(modelo_1.5), confint(modelo_1.5)))
+```
+
+**Comparación de AIC**
+
+```{r}
+#Definir la lista de modelos
+models1 <- list(modelo_1.1, modelo_1.2, modelo_1.3, modelo_1.4, modelo_1.5)
+
+#Especificar los nombres del modelo
+mod.names1 <- c('st.release', 'st.migr', 'st.mass', 'st.indiv', 'st.insect')
+
+#Calcular el AIC de cada modelo
+aictab(cand.set = models1, modnames = mod.names1)
+```
+
+Observamos que el modelo 1.1 es el que tiene el menor AIC, por lo que "Release" entraría primero al modelo
+   
+    
