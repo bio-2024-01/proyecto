@@ -5,17 +5,17 @@ editor: visual
 ---
 
 ```{r}
-library(haven)
-library(writexl)
-library(lubridate)
+library(GGally)
+library(PerformanceAnalytics)
+library(car)
+library(corrplot)
 library(dplyr)
 library(ggplot2)
-library(sf)
-library(ggplot2)
+library(haven)
 library(lubridate)
-library(corrplot)
+library(sf)
 library(stats)
-library(car)
+library(writexl)
 ```
 
 ```{r}
