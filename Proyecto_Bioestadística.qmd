@@ -619,8 +619,7 @@ Observamos que el modelo 1.1 es el que tiene el menor AIC, por lo que "Release" 
 # Modelos multivariados
 
 ```{r}
-data(Data_Final)
-fm <- lm(VIOLENCIA_SEXUAL_BINARIA~., data = Data_Final, family = binomial, na.action = "na.fail")
+fm <- glm(VIOLENCIA_SEXUAL_BINARIA~., data = Data_Final, family = binomial, na.action = "na.fail")
 
 models <- dredge(fm)
 models
