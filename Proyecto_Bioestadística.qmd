@@ -631,3 +631,7 @@ models
 modelo_best <- get.models(models, 1)[[1]]
 summary(modelo_best)
 ```
+
+```{r}
+plot(modelo_best)
+```
