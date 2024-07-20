@@ -5,17 +5,17 @@ editor: visual
 ---
 
 ```{r}
-library(GGally)
-library(PerformanceAnalytics)
-library(car)
-library(corrplot)
+library(haven)
+library(writexl)
+library(lubridate)
 library(dplyr)
 library(ggplot2)
-library(haven)
-library(lubridate)
 library(sf)
+library(ggplot2)
+library(lubridate)
+library(corrplot)
 library(stats)
-library(writexl)
+library(car)
 ```
 
 ```{r}
@@ -376,41 +376,26 @@ ggplot(BD_2023, aes(x = NIVEL_EDUCATIVO_VICTIMA, fill = VIOLENCIA_SEXUAL)) +
 Interpretación de resultados:
 
 1.  Para las variables númericas
-    1.   Boxplot de Edad de las víctimas por violencia sexual (evento de interés)
+    1.  Boxplot de Edad de las víctimas por violencia sexual (evento de interés)
     2.  Medianta (-): Las medianas de edad de las víctimas de violencia sexual ("Sí") y las que no han sufrido ("No") son muy similares, aprox en los 14 años.
     3.  IQR: Hay más variabilidad en las edades de las víctimas que no han sufrido violencia sexual.
     4.  Valores atípicos: Tenemos la presencia de algunos de ellos en edades muy bajas en ambos grupos, esto indica casos ailados de víctimas muy jóvenes.
-    5.  Conclusión: Dado que la distribución de las edades de las víctimas que han sufrido violencia sexual es más estrecha, esto sugiere que la violencia sexual puede estar afectando de manera desproporcionada a un rango de edades más específico. 
-    
-## Regresión logística: 
+    5.  Conclusión: Dado que la distribución de las edades de las víctimas que han sufrido violencia sexual es más estrecha, esto sugiere que la violencia sexual puede estar afectando de manera desproporcionada a un rango de edades más específico.
+
+## Regresión logística:
+
 ### Selección de variables
+
 Este permite modelar la probabilidad de que ocurra un evento binario (en nuestro estudio: Sufrir violencia sexual) en función de una o más variables predictoras (pueden se categóricas o continuas)
 
-¿A qué variables utilizaremos una regresión logística binomial? 
-  - Víctima:
-    - "VICTIMA_GESTANDO"
-    - "ESTUDIA"
-    - "TRABAJA_VICTIMA"
-    - "DISCAPACIDAD_VICTIMA"
-  - Agresor: 
-    - "SEXO_AGRESOR"
-    - "TRABAJA_AGRESOR" 
-    
-¿A qué variables utilizaremos una regresión logística multinomial?
-  - Víctima: 
-    - "ETNIA_VICTIMA"
-    - "ESTADO_CIVIL_VICTIMA"
-    - "NIVEL_EDUCATIVO_VICTIMA"
-  - Agresor: 
-    - "NIVEL_EDUCATIVO_AGRESOR"
-    - "AGRESOR_VIVE_CASA_VICTIMA"
-    - "SITUACION_AGRESOR"
-    - "VINCULO_AGRESOR_VICTIMA" 
- 
+¿A qué variables utilizaremos una regresión logística binomial? - Víctima: - "VICTIMA_GESTANDO" - "ESTUDIA" - "TRABAJA_VICTIMA" - "DISCAPACIDAD_VICTIMA" - Agresor: - "SEXO_AGRESOR" - "TRABAJA_AGRESOR"
+
+¿A qué variables utilizaremos una regresión logística multinomial? - Víctima: - "ETNIA_VICTIMA" - "ESTADO_CIVIL_VICTIMA" - "NIVEL_EDUCATIVO_VICTIMA" - Agresor: - "NIVEL_EDUCATIVO_AGRESOR" - "AGRESOR_VIVE_CASA_VICTIMA" - "SITUACION_AGRESOR" - "VINCULO_AGRESOR_VICTIMA"
+
 ## Analisis de correlación
 
-Para identificar cuáles pueden ser los mejores predictores para el
-modelo
+Para identificar cuáles pueden ser los mejores predictores para el modelo
+
 ```{r}
 
 # Usando nombres de columnas como índices
@@ -426,30 +411,75 @@ head(Dataimport)
 
 ```
 
-### Con la liberia GGally
-
 ```{r}
-#La libreria GGally permite observar los diagramas de dispersión, valores de correlación y la distribución de las variables en un solo gráfico
-ggpairs(Dataimport, lower = list(continuous = "smooth"), diag = list(continuous = "bar"), axisLabels = "none")
+library(ggcorrplot)
+library(dplyr)
+library(magrittr)
+# Paso 1: Crear la matriz del modelo
+model_matrix <- model.matrix(~0+., data=Dataimport)
+
+# Paso 2: Calcular la correlación
+cor_matrix <- cor(model_matrix, use="pairwise.complete.obs")
+
+# Paso 3: Crear el gráfico
+ggcorrplot(cor_matrix, show.diag=FALSE, type="lower", lab=TRUE, lab_size=2)
 ```
 
-### Con la libreria PerformanceAnalytics
+Análisis de correlación:
+
+-   "VICTIMA_GESTANTE": Muestra una correlación positiva moderada (0.39) con la violencia sexual. Esto sugiere que el estado de gestación de la víctima podría ser un predictor importante.
+
+```{=html}
+<!-- -->
+```
+-   "TRABAJA_AGRESOR": Presenta una correlación positiva débil a moderada (0.15), indicando que la situación laboral del agresor podría tener cierta capacidad predictiva.
+
+```{=html}
+<!-- -->
+```
+-   "NIVEL_EDUCATIVO_VICTIMA": Muestra una correlación positiva débil (0.12), sugiriendo que el nivel educativo de la víctima podría ser un factor predictor, aunque menos fuerte que los anteriores.
+
+```{=html}
+<!-- -->
+```
+-   "SEXO_AGRESOR": Tiene una correlación débil positiva (0.06), lo que podría indicar una ligera relevancia predictiva.
+
+```{=html}
+<!-- -->
+```
+-   "NIVEL_EDUCATIVO_AGRESOR": Muestra una correlación débil positiva (0.08), sugiriendo que el nivel educativo del agresor podría tener algún valor predictivo.
+
+```{=html}
+<!-- -->
+```
+-   "AGRESOR_VIVE_CASA_VICTIMA": Presenta una correlación débil positiva (0.23), lo que podría ser un factor predictor a considerar.
+
+### Selección de variables
+
+Utilizaremos solo 6 variables para la regresión:
+
+| Variable                  | Descripción |
+|:--------------------------|:------------|
+| VICTIMA_GESTANTE          |             |
+| TRABAJA_AGRESOR           |             |
+| NIVEL_EDUCATIVO_VICTIMA   |             |
+| SEXO_AGRESOR              |             |
+| NIVEL_EDUCATIVO_AGRESOR   |             |
+| AGRESOR_VIVE_CASA_VICTIMA |             |
+
+Guardamos las 6 variables en el objeto "Data_Final".
 
 ```{r}
-chart.Correlation(Dataimport, method="spearman", histogram=TRUE, pch=16)
+# Primero, verifiquemos los niveles actuales de la variable
+print(table(Dataimport$VIOLENCIA_SEXUAL))
+# Convertir la variable a factor si aún no lo es
+Dataimport$VIOLENCIA_SEXUAL <- as.factor(Dataimport$VIOLENCIA_SEXUAL) 
+# Convertir la variable a numérica (0 y 1)
+Dataimport$VIOLENCIA_SEXUAL_BINARIA <- as.numeric(Dataimport$VIOLENCIA_SEXUAL == "Sí")
+# Verificar la nueva codificación
+print(table(Dataimport$VIOLENCIA_SEXUAL_BINARIA))
+Data_Final <- Dataimport %>% select(VIOLENCIA_SEXUAL_BINARIA, VICTIMA_GESTANDO, TRABAJA_AGRESOR, NIVEL_EDUCATIVO_VICTIMA, SEXO_AGRESOR, AGRESOR_VIVE_CASA_VICTIMA)
 ```
-
-Se puede visualizar que sí existe relación entre ciertas variables.
-
-### Con la libreria corrplot
-
-```{r}
-library(corrplot)
-correlations <- cor(Dataimport[,1:14])
-
-corrplot(correlations, method = "circle")
-```
-
 
 ### Método Forward
 
@@ -458,8 +488,7 @@ corrplot(correlations, method = "circle")
 Corremos un modelo nulo.
 
 ```{r}
-
-modelo_nulo = glm(Status ~ 1,
+modelo_nulo = glm(VIOLENCIA_SEXUAL_BINARIA ~ 1,
                  data=Data_Final,
                  family = binomial)
 
@@ -469,15 +498,21 @@ summary(modelo_nulo)
 Definimos y calculamos el ajuste del modelo.
 
 ```{r}
-#Definir el modelo
+# Modelo nulo
+modelo_nulo <- glm(VIOLENCIA_SEXUAL_BINARIA ~ 1,
+                   data = Data_Final,
+                   family = binomial)
+
+summary(modelo_nulo)
+
+library(AICcmodavg)
+
+# Método Forward - Comenzando con el modelo nulo
 modelo_0 <- list(modelo_nulo)
+mod.names0 <- c('Modelo_Nulo')
 
-#Especificar el nombre del modelo
-mod.names0 <- c('status')
-
-#Calcular el AIC del modelo nulo
+# Calcular el AIC del modelo nulo
 aictab(cand.set = modelo_0, modnames = mod.names0)
-
 ```
 
 El AIC del modelo nulo es 92.4.
@@ -487,8 +522,40 @@ El AIC del modelo nulo es 92.4.
 Realizamos nuestro primer modelo de primer orden.
 
 ```{r}
-modelo_1.1 <- glm(Status ~ Release, data = Data_Final, family = binomial )
+# No funciona
+
+library(AICcmodavg)
+
+# Modelos de primer orden
+modelo_1.1 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ VICTIMA_GESTANDO, data = Data_Final, family = binomial)
 summary(modelo_1.1)
+exp(cbind(coef(modelo_1.1), confint(modelo_1.1)))
+
+modelo_1.2 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ TRABAJA_AGRESOR, data = Data_Final, family = binomial)
+summary(modelo_1.2)
+exp(cbind(coef(modelo_1.2), confint(modelo_1.2)))
+
+modelo_1.3 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ NIVEL_EDUCATIVO_VICTIMA, data = Data_Final, family = binomial)
+summary(modelo_1.3)
+exp(cbind(coef(modelo_1.3), confint(modelo_1.3)))
+
+modelo_1.4 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ SEXO_AGRESOR, data = Data_Final, family = binomial)
+summary(modelo_1.4)
+exp(cbind(coef(modelo_1.4), confint(modelo_1.4)))
+
+#modelo_1.5 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ NIVEL_EDUCATIVO_AGRESOR, data = Data_Final, family = binomial)
+#summary(modelo_1.5)
+#exp(cbind(coef(modelo_1.5), confint(modelo_1.5)))
+
+modelo_1.6 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ AGRESOR_VIVE_CASA_VICTIMA, data = Data_Final, family = binomial)
+summary(modelo_1.6)
+exp(cbind(coef(modelo_1.6), confint(modelo_1.6)))
+
+# Comparación de AIC
+models1 <- list(modelo_1.1, modelo_1.2, modelo_1.3, modelo_1.4, modelo_1.6)
+mod.names1 <- c('st.gestante', 'st.trabaja_agresor', 'st.edu_victima', 'st.sexo_agresor', 'st.edu_agresor', 'st.vive_con')
+
+aictab(cand.set = models1, modnames = mod.names1)
 ```
 
 Calculamos el intervalo de confianza de los coeficientes.
@@ -545,5 +612,3 @@ aictab(cand.set = models1, modnames = mod.names1)
 ```
 
 Observamos que el modelo 1.1 es el que tiene el menor AIC, por lo que "Release" entraría primero al modelo
-   
-    
