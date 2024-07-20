@@ -5,17 +5,18 @@ editor: visual
 ---
 
 ```{r}
-library(haven)
-library(writexl)
-library(lubridate)
+library(MuMIn)
+library(car)
+library(corrplot)
 library(dplyr)
 library(ggplot2)
-library(sf)
 library(ggplot2)
+library(haven)
 library(lubridate)
-library(corrplot)
+library(lubridate)
+library(sf)
 library(stats)
-library(car)
+library(writexl)
 ```
 
 ```{r}
@@ -478,7 +479,9 @@ Dataimport$VIOLENCIA_SEXUAL <- as.factor(Dataimport$VIOLENCIA_SEXUAL)
 Dataimport$VIOLENCIA_SEXUAL_BINARIA <- as.numeric(Dataimport$VIOLENCIA_SEXUAL == "Sí")
 # Verificar la nueva codificación
 print(table(Dataimport$VIOLENCIA_SEXUAL_BINARIA))
-Data_Final <- Dataimport %>% select(VIOLENCIA_SEXUAL_BINARIA, VICTIMA_GESTANDO, TRABAJA_AGRESOR, NIVEL_EDUCATIVO_VICTIMA, SEXO_AGRESOR, AGRESOR_VIVE_CASA_VICTIMA)
+Data_Final <- Dataimport %>%
+  select(VIOLENCIA_SEXUAL_BINARIA, VICTIMA_GESTANDO, TRABAJA_AGRESOR, NIVEL_EDUCATIVO_VICTIMA, SEXO_AGRESOR, AGRESOR_VIVE_CASA_VICTIMA) %>%
+  mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))
 ```
 
 ### Método Forward
@@ -612,3 +615,12 @@ aictab(cand.set = models1, modnames = mod.names1)
 ```
 
 Observamos que el modelo 1.1 es el que tiene el menor AIC, por lo que "Release" entraría primero al modelo
+
+# Modelos multivariados
+
+```{r}
+data(Data_Final)
+fm <- lm(VIOLENCIA_SEXUAL_BINARIA~., data = Data_Final, family = binomial, na.action = "na.fail")
+
+dredge(fm, )
+```
