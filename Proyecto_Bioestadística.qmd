@@ -4,6 +4,8 @@ format: html
 editor: visual
 ---
 
+**Librerias**
+
 ```{r}
 library(MuMIn)
 library(car)
@@ -18,6 +20,8 @@ library(sf)
 library(stats)
 library(writexl)
 ```
+
+**Limpieza de datos**
 
 ```{r}
 #Importando datos
@@ -59,6 +63,76 @@ BD_2023 <- BD_2023 %>%
 BD_2023 <- BD_2023 %>% mutate(across(-c(1, 3), as.numeric))
 
 
+```
+
+**Gráficos**
+
+```{r}
+{r}
+df0 <- data.frame(value = BD_2023[BD_2023$TIPO_VIOLENCIA!=3,], group = "Otras formas de violencia")
+df3 <- data.frame(value = BD_2023[BD_2023$TIPO_VIOLENCIA==3,], group = "Sexual")
+df <- rbind(df3,df0)
+ggplot(data=df, aes(x=value.semana_epidemiologica,fill=group))+
+  geom_histogram(position = "dodge",alpha=0.8, bins = 12)+
+  labs(x="Semana epidemiológicas 2023",y="Cantidad de casos")+
+  ggtitle(label="Formas de violencia en niñas menores por semana epidemiológica en el 2023")+
+  scale_fill_manual(values = c("yellow","red"))
+  scale_x_continuous(breaks = seq(1, 52, by = 12)) +
+  scale_y_continuous(breaks = seq(0, 1000, by = 500))
+```
+
+```{r}
+#frecuencia relativa de casos de violencia sexual por departamento
+resumen <- BD_2023 %>%
+  group_by(DPTO_DOMICILIO) %>%
+  summarise(count = n())
+```
+
+```{r}
+#names(BD_2023)
+peru_departamentos <- st_read(dsn = "D:/Bioingenieria/2024/ciclo 2024 - 1/Bioestadística/Proyecto/dp.shp")
+
+names(resumen)[1]="OBJECTID"
+resumen$OBJECTID<-as.numeric(resumen$OBJECTID)
+
+peru_casos <-inner_join(peru_departamentos, resumen, by = "OBJECTID")
+
+ggplot() +
+  geom_sf(data = peru_casos, aes(fill = count)) +
+  scale_fill_gradient2(name = "Casos", low = "white", mid = "pink", high = "red", midpoint = median (peru_casos$count)) +  # Define un color de punto medio +
+  theme_minimal() +
+  labs(title = "Mapa de Calor de Casos de Violencia Sexual por Departamento en Perú",
+       subtitle = "Fuente: Proyecto aurora",
+       ) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )
+```
+
+```{r}
+datos <- read_excel("Reporte1.xlsx")
+
+columna_para_unir <- datos %>% select(OBJECTID,Mujeres)
+peru_casos <- left_join(peru_casos, columna_para_unir, by = "OBJECTID")
+peru_casos<- peru_casos %>%mutate(R_count = round((count / Mujeres)*1000,1))
+```
+
+```{r}
+{r}
+ggplot() +
+  geom_sf(data = peru_casos, aes(fill = R_count)) +
+  scale_fill_gradient2(name = "Casos de violencia sexual por cada 1000 muejres", low = "white", mid = "pink", high = "red", midpoint = median (peru_casos$R_count)) +  # Define un color de punto medio +
+  theme_minimal() +
+  labs(title = "Mapa de calor de cantidad relativa de casos de Violencia Sexual por cada 1000 mujeres",
+       subtitle = "Fuente: Proyecto aurora",
+       ) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )
 ```
 
 ```{r}
@@ -430,43 +504,38 @@ Análisis de correlación:
 
 -   "VICTIMA_GESTANTE": Muestra una correlación positiva moderada (0.39) con la violencia sexual. Esto sugiere que el estado de gestación de la víctima podría ser un predictor importante.
 
-```{=html}
 <!-- -->
-```
+
 -   "TRABAJA_AGRESOR": Presenta una correlación positiva débil a moderada (0.15), indicando que la situación laboral del agresor podría tener cierta capacidad predictiva.
 
-```{=html}
 <!-- -->
-```
+
 -   "NIVEL_EDUCATIVO_VICTIMA": Muestra una correlación positiva débil (0.12), sugiriendo que el nivel educativo de la víctima podría ser un factor predictor, aunque menos fuerte que los anteriores.
 
-```{=html}
 <!-- -->
-```
+
 -   "SEXO_AGRESOR": Tiene una correlación débil positiva (0.06), lo que podría indicar una ligera relevancia predictiva.
 
-```{=html}
 <!-- -->
-```
+
 -   "NIVEL_EDUCATIVO_AGRESOR": Muestra una correlación débil positiva (0.08), sugiriendo que el nivel educativo del agresor podría tener algún valor predictivo.
 
-```{=html}
 <!-- -->
-```
+
 -   "AGRESOR_VIVE_CASA_VICTIMA": Presenta una correlación débil positiva (0.23), lo que podría ser un factor predictor a considerar.
 
 ### Selección de variables
 
 Utilizaremos solo 6 variables para la regresión:
 
-| Variable                  | Descripción |
-|:--------------------------|:------------|
-| VICTIMA_GESTANTE          |             |
-| TRABAJA_AGRESOR           |             |
-| NIVEL_EDUCATIVO_VICTIMA   |             |
-| SEXO_AGRESOR              |             |
-| NIVEL_EDUCATIVO_AGRESOR   |             |
-| AGRESOR_VIVE_CASA_VICTIMA |             |
+| Variable                  |
+|:--------------------------|
+| VICTIMA_GESTANTE          |
+| TRABAJA_AGRESOR           |
+| NIVEL_EDUCATIVO_VICTIMA   |
+| SEXO_AGRESOR              |
+| NIVEL_EDUCATIVO_AGRESOR   |
+| AGRESOR_VIVE_CASA_VICTIMA |
 
 Guardamos las 6 variables en el objeto "Data_Final".
 
@@ -619,7 +688,7 @@ Observamos que el modelo 1.1 es el que tiene el menor AIC, por lo que "Release" 
 # Modelos multivariados
 
 ```{r}
-fm <- glm(VIOLENCIA_SEXUAL_BINARIA~., data = Data_Final, family = binomial, na.action = "na.fail")
+fm <- glm(VIOLENCIA_SEXUAL_BINARIA~., data = Data_Final, family = poisson(link = "log"), na.action = "na.fail")
 
 models <- dredge(fm)
 models
