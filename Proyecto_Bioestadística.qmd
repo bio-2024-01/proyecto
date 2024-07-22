@@ -68,7 +68,6 @@ BD_2023 <- BD_2023 %>% mutate(across(-c(1, 3), as.numeric))
 **Gráficos**
 
 ```{r}
-{r}
 df0 <- data.frame(value = BD_2023[BD_2023$TIPO_VIOLENCIA!=3,], group = "Otras formas de violencia")
 df3 <- data.frame(value = BD_2023[BD_2023$TIPO_VIOLENCIA==3,], group = "Sexual")
 df <- rbind(df3,df0)
@@ -90,7 +89,7 @@ resumen <- BD_2023 %>%
 
 ```{r}
 #names(BD_2023)
-peru_departamentos <- st_read(dsn = "D:/Bioingenieria/2024/ciclo 2024 - 1/Bioestadística/Proyecto/dp.shp")
+peru_departamentos <- st_read(dsn = "dp.shp")
 
 names(resumen)[1]="OBJECTID"
 resumen$OBJECTID<-as.numeric(resumen$OBJECTID)
@@ -502,42 +501,27 @@ ggcorrplot(cor_matrix, show.diag=FALSE, type="lower", lab=TRUE, lab_size=2)
 
 Análisis de correlación:
 
--   "VICTIMA_GESTANTE": Muestra una correlación positiva moderada (0.39) con la violencia sexual. Esto sugiere que el estado de gestación de la víctima podría ser un predictor importante.
+-   "ESTUDIA": Muestra una correlación positiva débil a moderada (0.17) con la violencia sexual.
 
-<!-- -->
+-   "DISCAPACIDAD_VICTIMA": Muestra una correlación positiva débil (0.05) con la violencia sexual.
 
--   "TRABAJA_AGRESOR": Presenta una correlación positiva débil a moderada (0.15), indicando que la situación laboral del agresor podría tener cierta capacidad predictiva.
+-   "SEXO_AGRESOR": Tiene una correlación positiva (0.36), lo que podría indicar una ligera relevancia predictiva.
 
-<!-- -->
-
--   "NIVEL_EDUCATIVO_VICTIMA": Muestra una correlación positiva débil (0.12), sugiriendo que el nivel educativo de la víctima podría ser un factor predictor, aunque menos fuerte que los anteriores.
-
-<!-- -->
-
--   "SEXO_AGRESOR": Tiene una correlación débil positiva (0.06), lo que podría indicar una ligera relevancia predictiva.
-
-<!-- -->
-
--   "NIVEL_EDUCATIVO_AGRESOR": Muestra una correlación débil positiva (0.08), sugiriendo que el nivel educativo del agresor podría tener algún valor predictivo.
-
-<!-- -->
-
--   "AGRESOR_VIVE_CASA_VICTIMA": Presenta una correlación débil positiva (0.23), lo que podría ser un factor predictor a considerar.
+-   "VINCULO_AGRESOR_VICTIMA": Muestra una correlación positiva a alta (0.54), sugiriendo que el nivel educativo de la víctima podría ser un factor predictor muy importante.
 
 ### Selección de variables
 
-Utilizaremos solo 6 variables para la regresión:
+Utilizaremos solo 4 variables para la regresión:
 
-| Variable                  |
-|:--------------------------|
-| VICTIMA_GESTANTE          |
-| TRABAJA_AGRESOR           |
-| NIVEL_EDUCATIVO_VICTIMA   |
-| SEXO_AGRESOR              |
-| NIVEL_EDUCATIVO_AGRESOR   |
-| AGRESOR_VIVE_CASA_VICTIMA |
+| Variable                |     
+|:------------------------|
+| ESTUDIA                 |     
+| DISCAPACIDAD_VICTIMA    |     
+| SEXO_AGRESOR            |       
+| VINCULO_AGRESOR_VICTIMA |       
 
-Guardamos las 6 variables en el objeto "Data_Final".
+
+Guardamos las 4 variables en el objeto "Data_Final".
 
 ```{r}
 # Primero, verifiquemos los niveles actuales de la variable
@@ -549,7 +533,7 @@ Dataimport$VIOLENCIA_SEXUAL_BINARIA <- as.numeric(Dataimport$VIOLENCIA_SEXUAL ==
 # Verificar la nueva codificación
 print(table(Dataimport$VIOLENCIA_SEXUAL_BINARIA))
 Data_Final <- Dataimport %>%
-  select(VIOLENCIA_SEXUAL_BINARIA, VICTIMA_GESTANDO, TRABAJA_AGRESOR, NIVEL_EDUCATIVO_AGRESOR, SEXO_AGRESOR, AGRESOR_VIVE_CASA_VICTIMA) %>%
+  select(VIOLENCIA_SEXUAL_BINARIA, ESTUDIA, DISCAPACIDAD_VICTIMA, SEXO_AGRESOR, VINCULO_AGRESOR_VICTIMA) %>%
   mutate(across(everything(), ~ ifelse(is.na(.), 0, .)))
 ```
 
@@ -562,7 +546,7 @@ Corremos un modelo nulo.
 ```{r}
 modelo_nulo = glm(VIOLENCIA_SEXUAL_BINARIA ~ 1,
                  data=Data_Final,
-                 family = binomial)
+                 family = poisson)
 
 summary(modelo_nulo)
 ```
@@ -573,7 +557,7 @@ Definimos y calculamos el ajuste del modelo.
 # Modelo nulo
 modelo_nulo <- glm(VIOLENCIA_SEXUAL_BINARIA ~ 1,
                    data = Data_Final,
-                   family = binomial)
+                   family = poisson)
 
 summary(modelo_nulo)
 
@@ -587,103 +571,336 @@ mod.names0 <- c('Modelo_Nulo')
 aictab(cand.set = modelo_0, modnames = mod.names0)
 ```
 
-El AIC del modelo nulo es 92.4.
+El AIC del modelo nulo es 58609.31.
+
+```{r}
+0.04*58609.31
+```
+
 
 #### Modelos de primer orden
 
 Realizamos nuestro primer modelo de primer orden.
 
 ```{r}
-# No funciona
-
+# Cargar librerías necesarias
 library(AICcmodavg)
+library(sandwich)
+library(lmtest)
+
+# Modelo nulo
+modelo_nulo <- glm(VIOLENCIA_SEXUAL_BINARIA ~ 1,
+                   data = Data_Final,
+                   family = poisson)
+summary(modelo_nulo)
+
+# Calcular el AIC del modelo nulo
+modelo_0 <- list(modelo_nulo)
+mod.names0 <- c('Modelo_Nulo')
+aictab(cand.set = modelo_0, modnames = mod.names0)
+
+# Función para obtener razón de prevalencia e IC robusto
+get_robust_pr <- function(modelo) {
+  coef_rob <- coeftest(modelo, vcov = sandwich)
+  exp(cbind(PR = coef_rob[, "Estimate"],
+             LowerCI = coef_rob[, "Estimate"] - 1.96 * coef_rob[, "Std. Error"],
+             UpperCI = coef_rob[, "Estimate"] + 1.96 * coef_rob[, "Std. Error"]))
+}
 
 # Modelos de primer orden
-modelo_1.1 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ VICTIMA_GESTANDO, data = Data_Final, family = binomial)
+modelo_1.1 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ ESTUDIA, data = Data_Final, family = poisson)
 summary(modelo_1.1)
-exp(cbind(coef(modelo_1.1), confint(modelo_1.1)))
+get_robust_pr(modelo_1.1)
 
-modelo_1.2 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ TRABAJA_AGRESOR, data = Data_Final, family = binomial)
+modelo_1.2 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ DISCAPACIDAD_VICTIMA, data = Data_Final, family = poisson)
 summary(modelo_1.2)
-exp(cbind(coef(modelo_1.2), confint(modelo_1.2)))
+get_robust_pr(modelo_1.2)
 
-modelo_1.3 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ NIVEL_EDUCATIVO_VICTIMA, data = Data_Final, family = binomial)
+modelo_1.3 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ SEXO_AGRESOR, data = Data_Final, family = poisson)
 summary(modelo_1.3)
-exp(cbind(coef(modelo_1.3), confint(modelo_1.3)))
+get_robust_pr(modelo_1.3)
 
-modelo_1.4 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ SEXO_AGRESOR, data = Data_Final, family = binomial)
+modelo_1.4 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ VINCULO_AGRESOR_VICTIMA, data = Data_Final, family = poisson)
 summary(modelo_1.4)
-exp(cbind(coef(modelo_1.4), confint(modelo_1.4)))
-
-#modelo_1.5 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ NIVEL_EDUCATIVO_AGRESOR, data = Data_Final, family = binomial)
-#summary(modelo_1.5)
-#exp(cbind(coef(modelo_1.5), confint(modelo_1.5)))
-
-modelo_1.6 <- glm(VIOLENCIA_SEXUAL_BINARIA ~ AGRESOR_VIVE_CASA_VICTIMA, data = Data_Final, family = binomial)
-summary(modelo_1.6)
-exp(cbind(coef(modelo_1.6), confint(modelo_1.6)))
+get_robust_pr(modelo_1.4)
 
 # Comparación de AIC
-models1 <- list(modelo_1.1, modelo_1.2, modelo_1.3, modelo_1.4, modelo_1.6)
-mod.names1 <- c('st.gestante', 'st.trabaja_agresor', 'st.edu_victima', 'st.sexo_agresor', 'st.edu_agresor', 'st.vive_con')
-
+models1 <- list(modelo_1.1, modelo_1.2, modelo_1.3, modelo_1.4)
+mod.names1 <- c('st.estudia', 'st.discapacidadvictima', 'st.sexoagresor', 'st.vinculoagresorvictima')
 aictab(cand.set = models1, modnames = mod.names1)
 ```
+
+1. Modelo nulo:
+   - AIC: 58609
+   - No proporciona información sobre factores asociados.
+
+2. Modelo con ESTUDIA:
+   - AIC: 58136 (mejor que el modelo nulo)
+   - Razón de Prevalencia (PR) para ESTUDIA: 1.54 (IC 95%: 1.49 - 1.59)
+   - Interpretación: Las personas que estudian tienen 1.54 veces más probabilidad de reportar violencia sexual en comparación con las que no estudian.
+
+3. Modelo con DISCAPACIDAD_VICTIMA:
+   - AIC: 58601 (ligeramente mejor que el modelo nulo)
+   - PR para DISCAPACIDAD_VICTIMA: 1.22 (IC 95%: 1.14 - 1.30)
+   - Interpretación: Las personas con discapacidad tienen 1.22 veces más probabilidad de reportar violencia sexual.
+
+4. Modelo con SEXO_AGRESOR:
+   - AIC: 54981 (mejora significativa respecto al modelo nulo)
+   - PR para SEXO_AGRESOR: 11.91 (IC 95%: 10.51 - 13.50)
+   - Interpretación: Cuando el agresor es hombre, la probabilidad de violencia sexual reportada es 11.91 veces mayor que cuando es mujer.
+
+5. Modelo con VINCULO_AGRESOR_VICTIMA:
+   - AIC: 53762 (el mejor modelo de los presentados)
+   - PR para VINCULO_AGRESOR_VICTIMA: 2.46 (IC 95%: 2.42 - 2.50)
+   - Interpretación: Por cada unidad de aumento en la escala de vínculo agresor-víctima, la probabilidad de violencia sexual reportada aumenta 2.46 veces.
+
+Comparación de modelos:
+El modelo con VINCULO_AGRESOR_VICTIMA tiene el AIC más bajo (53761.76), seguido por el modelo con SEXO_AGRESOR (54981.48). Esto sugiere que estas dos variables son las más importantes para explicar la variabilidad en la violencia sexual reportada.
+
+Todos los modelos muestran asociaciones estadísticamente significativas (p < 0.001) entre las variables predictoras y la violencia sexual.
+
+
 
 Calculamos el intervalo de confianza de los coeficientes.
 
 ```{r}
-exp(cbind(coef(modelo_1.1), confint(modelo_1.1)))
+library(ggplot2)
+library(broom)
+library(dplyr)
+library(forcats)
+
+# Función para extraer resultados y preparar para el gráfico
+get_results <- function(modelo, var_name) {
+  res <- get_robust_pr(modelo)
+  data.frame(
+    Variable = var_name,
+    PR = res[2, "PR"],  # Asumiendo que queremos el segundo coeficiente (no el intercepto)
+    LowerCI = res[2, "LowerCI"],
+    UpperCI = res[2, "UpperCI"]
+  )
+}
+
+# Combinar resultados de todos los modelos
+results <- rbind(
+  get_results(modelo_1.1, "ESTUDIA"),
+  get_results(modelo_1.2, "DISCAPACIDAD_VICTIMA"),
+  get_results(modelo_1.3, "SEXO_AGRESOR"),
+  get_results(modelo_1.4, "VINCULO_AGRESOR_VICTIMA")
+)
+
+# Ordenar resultados por PR descendente
+results <- results %>%
+  mutate(Variable = fct_reorder(Variable, PR))
+
+# Crear el gráfico
+ggplot(results, aes(x = Variable, y = PR)) +
+  geom_point(size = 3, color = "darkblue") +
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width = 0.2, color = "darkblue") +
+  coord_flip() +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  scale_y_log10(breaks = c(0.1, 0.5, 1, 2, 5, 10), 
+                labels = c("0.1", "0.5", "1", "2", "5", "10")) +
+  labs(title = "Razón de Prevalencia e Intervalos de Confianza",
+       subtitle = "Modelos de regresión de Poisson",
+       x = "Variables",
+       y = "Razón de Prevalencia (escala logarítmica)") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(face = "italic", size = 12),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 10),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  annotate("text", x = Inf, y = -Inf, label = "La línea roja punteada indica RP = 1", 
+           hjust = 1.1, vjust = -0.5, color = "red", fontface = "italic")
 ```
 
-Hacemos lo propio con el segundo modelo de primer orden.
+1. SEXO_AGRESOR:
+   - Tiene la razón de prevalencia (RP) más alta, alrededor de 11-12.
+   - El intervalo de confianza es relativamente estrecho y no incluye el 1.
+   - Interpretación: Cuando el agresor es hombre, el riesgo de violencia sexual es aproximadamente 11-12 veces mayor comparado con cuando el agresor es mujer.
+
+2. VINCULO_AGRESOR_VICTIMA:
+   - RP cercana a 2.5.
+   - Intervalo de confianza muy estrecho, indicando una estimación precisa.
+   - Interpretación: Por cada unidad de aumento en la escala de vínculo agresor-víctima, la probabilidad de violencia sexual aumenta aproximadamente 2.5 veces.
+
+3. ESTUDIA:
+   - RP ligeramente superior a 1.5.
+   - Intervalo de confianza estrecho y no incluye el 1.
+   - Interpretación: Las personas que estudian tienen aproximadamente 1.5 veces más probabilidad de reportar violencia sexual en comparación con las que no estudian.
+
+4. DISCAPACIDAD_VICTIMA:
+   - RP ligeramente superior a 1, cerca de 1.2.
+   - Intervalo de confianza que apenas supera el 1.
+   - Interpretación: Las personas con discapacidad tienen un riesgo ligeramente mayor (alrededor de 1.2 veces) de sufrir violencia sexual, pero el efecto es pequeño y cercano a la no significancia.
+
+Conclusiones generales:
+- El sexo del agresor es el factor más fuertemente asociado con la violencia sexual, con un efecto muy grande.
+- El vínculo entre agresor y víctima es el segundo factor más importante.
+- El hecho de estudiar también está asociado con un mayor riesgo, aunque en menor medida.
+- La discapacidad de la víctima tiene una asociación débil con el riesgo de violencia sexual.
+
+La línea roja punteada en 1 ayuda a visualizar fácilmente qué factores tienen un efecto significativo (aquellos cuyo intervalo de confianza no cruza esta línea).
+
+Este gráfico mejorado permite una comparación visual más clara entre las variables y destaca la magnitud relativa de sus efectos. La escala logarítmica en el eje X facilita la visualización de razones de prevalencia que varían en órdenes de magnitud.
+
+
+# Modelos bivariados
+```{r}
+library(sandwich)
+library(lmtest)
+library(ggplot2)
+library(dplyr)
+
+# Función para ajustar modelo de Poisson robusto y obtener razones de prevalencia
+fit_robust_poisson <- function(formula, data) {
+  model <- glm(formula, family = poisson(), data = data)
+  coef_robust <- coeftest(model, vcov = sandwich)
+  
+  # Extraer razones de prevalencia e intervalos de confianza
+  pr <- exp(coef_robust[, "Estimate"])
+  lower_ci <- exp(coef_robust[, "Estimate"] - 1.96 * coef_robust[, "Std. Error"])
+  upper_ci <- exp(coef_robust[, "Estimate"] + 1.96 * coef_robust[, "Std. Error"])
+  
+  return(data.frame(Variable = rownames(coef_robust), PR = pr, LowerCI = lower_ci, UpperCI = upper_ci))
+}
+
+# Ajustar modelos bivariados
+model1 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ SEXO_AGRESOR + VINCULO_AGRESOR_VICTIMA, Data_Final)
+model2 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ SEXO_AGRESOR + ESTUDIA, Data_Final)
+model3 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ SEXO_AGRESOR + DISCAPACIDAD_VICTIMA, Data_Final)
+model4 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ VINCULO_AGRESOR_VICTIMA + ESTUDIA, Data_Final)
+model5 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ VINCULO_AGRESOR_VICTIMA + DISCAPACIDAD_VICTIMA, Data_Final)
+
+# Combinar resultados
+results <- rbind(model1, model2, model3, model4, model5)
+results <- results[results$Variable != "(Intercept)", ]
+
+# Crear el gráfico
+ggplot(results, aes(x = reorder(Variable, PR), y = PR)) +
+  geom_point(size = 3, color = "darkblue") +
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width = 0.2, color = "darkblue") +
+  coord_flip() +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  scale_y_log10(breaks = c(0.5, 1, 2, 5, 10), 
+                labels = c("0.5", "1", "2", "5", "10")) +
+  labs(title = "Razón de Prevalencia e Intervalos de Confianza",
+       subtitle = "Modelos bivariados de regresión de Poisson con variaciones robustas",
+       x = "Variables",
+       y = "Razón de Prevalencia (escala logarítmica)") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(face = "italic", size = 12),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 10),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  annotate("text", x = Inf, y = -Inf, label = "La línea roja punteada indica RP = 1", 
+           hjust = 1.1, vjust = -0.5, color = "red", fontface = "italic")
+```
+
+
 
 ```{r}
-modelo_1.2 <- glm(Status ~ Migr, data  = Data_Final, family = binomial)
-summary(modelo_1.2)
+library(sandwich)
+library(lmtest)
+library(ggplot2)
+library(dplyr)
+library(knitr)
 
-exp(cbind(coef(modelo_1.2), confint(modelo_1.2)))
+# Función para ajustar modelo de Poisson robusto y obtener razones de prevalencia
+fit_robust_poisson <- function(formula, data) {
+  model <- glm(formula, family = poisson(), data = data)
+  coef_robust <- coeftest(model, vcov = sandwich)
+  
+  # Extraer razones de prevalencia e intervalos de confianza
+  pr <- exp(coef_robust[, "Estimate"])
+  lower_ci <- exp(coef_robust[, "Estimate"] - 1.96 * coef_robust[, "Std. Error"])
+  upper_ci <- exp(coef_robust[, "Estimate"] + 1.96 * coef_robust[, "Std. Error"])
+  
+  results <- data.frame(Variable = rownames(coef_robust), PR = pr, LowerCI = lower_ci, UpperCI = upper_ci)
+  
+  # Calcular AIC
+  aic <- AIC(model)
+  
+  return(list(results = results, aic = aic, model = model))
+}
+
+# Ajustar modelos bivariados
+model1 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ SEXO_AGRESOR + VINCULO_AGRESOR_VICTIMA, Data_Final)
+model2 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ SEXO_AGRESOR + ESTUDIA, Data_Final)
+model3 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ SEXO_AGRESOR + DISCAPACIDAD_VICTIMA, Data_Final)
+model4 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ VINCULO_AGRESOR_VICTIMA + ESTUDIA, Data_Final)
+model5 <- fit_robust_poisson(VIOLENCIA_SEXUAL_BINARIA ~ VINCULO_AGRESOR_VICTIMA + DISCAPACIDAD_VICTIMA, Data_Final)
+
+# Combinar resultados para el gráfico
+results_plot <- rbind(model1$results, model2$results, model3$results, model4$results, model5$results)
+results_plot <- results_plot[results_plot$Variable != "(Intercept)", ]
+
+# Crear el gráfico
+ggplot(results_plot, aes(x = reorder(Variable, PR), y = PR)) +
+  geom_point(size = 3, color = "darkblue") +
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width = 0.2, color = "darkblue") +
+  coord_flip() +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  scale_y_log10(breaks = c(0.5, 1, 2, 5, 10), 
+                labels = c("0.5", "1", "2", "5", "10")) +
+  labs(title = "Razón de Prevalencia e Intervalos de Confianza",
+       subtitle = "Modelos bivariados de regresión de Poisson con variaciones robustas",
+       x = "Variables",
+       y = "Razón de Prevalencia (escala logarítmica)") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(face = "italic", size = 12),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 10),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  annotate("text", x = Inf, y = -Inf, label = "La línea roja punteada indica RP = 1", 
+           hjust = 1.1, vjust = -0.5, color = "red", fontface = "italic")
+
+
+# Modificar la creación de la tabla de resultados
+table_results <- data.frame(
+  Modelo = c("SEXO_AGRESOR + VINCULO_AGRESOR_VICTIMA",
+             "SEXO_AGRESOR + ESTUDIA",
+             "SEXO_AGRESOR + DISCAPACIDAD_VICTIMA",
+             "VINCULO_AGRESOR_VICTIMA + ESTUDIA",
+             "VINCULO_AGRESOR_VICTIMA + DISCAPACIDAD_VICTIMA"),
+  AIC = c(model1$aic, model2$aic, model3$aic, model4$aic, model5$aic),
+  IC_SEXO_AGRESOR = c(format_ci(model1$results$LowerCI[2], model1$results$UpperCI[2]),
+                      format_ci(model2$results$LowerCI[2], model2$results$UpperCI[2]),
+                      format_ci(model3$results$LowerCI[2], model3$results$UpperCI[2]),
+                      NA,
+                      NA),
+  IC_VINCULO_AGRESOR_VICTIMA = c(format_ci(model1$results$LowerCI[3], model1$results$UpperCI[3]),
+                                 NA,
+                                 NA,
+                                 format_ci(model4$results$LowerCI[2], model4$results$UpperCI[2]),
+                                 format_ci(model5$results$LowerCI[2], model5$results$UpperCI[2])),
+  IC_ESTUDIA = c(NA,
+                 format_ci(model2$results$LowerCI[3], model2$results$UpperCI[3]),
+                 NA,
+                 format_ci(model4$results$LowerCI[3], model4$results$UpperCI[3]),
+                 NA),
+  IC_DISCAPACIDAD_VICTIMA = c(NA,
+                              NA,
+                              format_ci(model3$results$LowerCI[3], model3$results$UpperCI[3]),
+                              NA,
+                              format_ci(model5$results$LowerCI[3], model5$results$UpperCI[3]))
+)
+
+# Mostrar la tabla
+print(kable(table_results, caption = "Resultados de los modelos bivariados: AIC e Intervalos de Confianza de la Razón de Prevalencia"))
 ```
 
-Hacemos lo propio con el tercer modelo de primer orden.
-
-```{r}
-modelo_1.3 <- glm(Status ~ Mass, data = Data_Final, family = binomial)
-summary(modelo_1.3)
-
-exp(cbind(coef(modelo_1.3), confint(modelo_1.3)))
-```
-
-```{r}
-modelo_1.4 <- glm(Status ~ Indiv, data = Data_Final, family = binomial)
-summary(modelo_1.4)
-
-exp(cbind(coef(modelo_1.4), confint(modelo_1.4)))
-```
-
-Hacemos lo propio con el quinto modelo de primer orden.
-
-```{r}
-modelo_1.5 <- glm(Status ~ Insect, data = Data_Final, family = binomial)
-summary(modelo_1.5)
-
-exp(cbind(coef(modelo_1.5), confint(modelo_1.5)))
-```
-
-**Comparación de AIC**
-
-```{r}
-#Definir la lista de modelos
-models1 <- list(modelo_1.1, modelo_1.2, modelo_1.3, modelo_1.4, modelo_1.5)
-
-#Especificar los nombres del modelo
-mod.names1 <- c('st.release', 'st.migr', 'st.mass', 'st.indiv', 'st.insect')
-
-#Calcular el AIC de cada modelo
-aictab(cand.set = models1, modnames = mod.names1)
-```
-
-Observamos que el modelo 1.1 es el que tiene el menor AIC, por lo que "Release" entraría primero al modelo
 
 # Modelos multivariados
 
